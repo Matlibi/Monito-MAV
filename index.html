@@ -209,12 +209,7 @@ tbody td{padding:6px 10px;white-space:nowrap}
   </div>
   <div style="display:flex;align-items:center;gap:10px">
     <div class="pbadge" id="periodLabel">01/04/2026 — 29/04/2026</div>
-    <label class="upd-btn" title="Cargar uno o más CSV del MAV">
-      <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M6.5 1v8M3 4l3.5-3L10 4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path><path d="M1 10h11v2H1z" fill="currentColor" opacity=".4"></path></svg>
-      Actualizar
-      <input type="file" id="csvUpload" accept=".csv" multiple="" style="display:none" onchange="loadCSVs(this.files)">
-    </label>
-    <div id="loadingMsg" class="loading-msg hidden">⏳ Procesando…</div>
+    <div id="loadingMsg" class="loading-msg">⏳ Cargando datos…</div>
     <button class="dl-btn" onclick="descargarDashboard()" title="Descargar dashboard como HTML">
       <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M6.5 1v8M3 9l3.5 3L10 9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path><path d="M1 10h11v2H1z" fill="currentColor" opacity=".4"></path></svg>
       Descargar
@@ -15183,6 +15178,108 @@ let EVO_MONEDA = 'all';
 let DB = [...RAW];
 const CHARTS = {};
 
+// ── CONFIG GITHUB ─────────────────────────────────────────────────────────
+const GITHUB_USER = 'Matilibi';
+const GITHUB_REPO = 'monitor-mav';
+const GITHUB_BRANCH = 'main';
+const DATA_FOLDER = 'datos';
+
+// ── CARGA AUTOMÁTICA DESDE GITHUB ────────────────────────────────────────
+async function cargarDesdeGitHub() {
+  const loadingMsg = document.getElementById('loadingMsg');
+  loadingMsg.textContent = '⏳ Cargando datos desde la nube…';
+  loadingMsg.classList.remove('hidden');
+
+  const SEG_MAP = {
+    'No Garantizado': 'No Garantizado', 'No Garantizado Calificado': 'No Garantizado',
+    'Avalado': 'Avalado', 'Garantizado': 'Garantizado', 'Garantizado Calificado': 'Garantizado'
+  };
+
+  try {
+    // Listar archivos en la carpeta data/ via GitHub API
+    const apiUrl = `https://api.github.com/repos/${GITHUB_USER}/${GITHUB_REPO}/contents/${DATA_FOLDER}?ref=${GITHUB_BRANCH}`;
+    const res = await fetch(apiUrl);
+    if (!res.ok) {
+      loadingMsg.textContent = '⚠️ No se encontró la carpeta data/ en GitHub.';
+      return;
+    }
+    const archivos = await res.json();
+    const csvs = archivos.filter(f => f.name.endsWith('.csv'));
+
+    if (csvs.length === 0) {
+      loadingMsg.textContent = '⚠️ No hay archivos CSV en la carpeta data/.';
+      return;
+    }
+
+    loadingMsg.textContent = `⏳ Cargando ${csvs.length} archivos…`;
+
+    // Descargar todos los CSV en paralelo
+    const resultados = await Promise.all(csvs.map(async f => {
+      const rawUrl = `https://raw.githubusercontent.com/${GITHUB_USER}/${GITHUB_REPO}/${GITHUB_BRANCH}/${DATA_FOLDER}/${f.name}`;
+      const r = await fetch(rawUrl);
+      const buffer = await r.arrayBuffer();
+      // Decodificar ISO-8859-1
+      const decoder = new TextDecoder('iso-8859-1');
+      return decoder.decode(buffer);
+    }));
+
+    // Parsear todos los CSV
+    const nuevos = [];
+    resultados.forEach(texto => {
+      const lines = texto.split(/\r?\n/).slice(1);
+      lines.forEach(line => {
+        if (!line.trim()) return;
+        const f = line.split(';');
+        if (!f[20] || f[20].trim() !== 'Negociada') return;
+        const monto = parseFloat((f[18] || '').replace(/\./g, '').replace(',', '.'));
+        const tasa = parseFloat((f[14] || '').replace(',', '.'));
+        const plazo = parseInt(f[12]);
+        const agComp = f[13] ? String(Math.round(parseFloat(f[13]))) : '—';
+        const agVend = f[16] ? f[16].trim() : '—';
+        const seg = SEG_MAP[f[2]] || f[2] || '—';
+        nuevos.push({
+          fecha: f[1] ? f[1].trim() : '—',
+          segmento: seg,
+          pyme: (f[3] || '').trim().toUpperCase() === 'SI' ? 'SI' : 'NO',
+          instrumento: (f[6] || '').trim(),
+          plazo: isNaN(plazo) ? null : plazo,
+          ag_comp: agComp,
+          tasa: isNaN(tasa) ? null : tasa,
+          ag_vend: agVend,
+          moneda: (f[17] || '').trim(),
+          monto: isNaN(monto) ? null : monto,
+          resp: (f[24] || '—').trim() || '—',
+          ben: (f[27] || '—').trim() || '—',
+          hora: (f[21] || '—').trim() || '—',
+        });
+      });
+    });
+
+    // Merge con RAW (datos embebidos) y datos de GitHub, deduplicando por fecha
+    const fechasNuevas = new Set(nuevos.map(r => r.fecha));
+    DB = DB.filter(r => !fechasNuevas.has(r.fecha));
+    DB = [...DB, ...nuevos];
+    DB.sort((a, b) => a.fecha.localeCompare(b.fecha));
+
+    rebuildFechaSelect();
+    rebuildEvoFechaSelect();
+    buildRespList(S.seg);
+    buildEvoRespList(S.seg);
+    buildBenList();
+    updatePeriodLabel();
+
+    const fechasUnicas = [...new Set(DB.map(r => r.fecha))];
+    loadingMsg.textContent = `✅ ${fechasUnicas.length} días cargados`;
+    setTimeout(() => loadingMsg.classList.add('hidden'), 3000);
+
+    applyFilters();
+
+  } catch (err) {
+    console.error(err);
+    loadingMsg.textContent = '⚠️ Error al cargar desde GitHub.';
+  }
+}
+
 // ── HELPERS ──────────────────────────────────────────────────────────────
 const avg = a=>a.length?a.reduce((x,y)=>x+y,0)/a.length:0;
 const sumArr = a=>a.reduce((x,y)=>x+y,0);
@@ -15225,6 +15322,8 @@ const getHora=r=>{if(!r.hora||r.hora==='—')return null;const m=r.hora.match(/^
 window.addEventListener('DOMContentLoaded',()=>{
   const fechas=[...new Set(DB.map(r=>r.fecha))].sort();
   updatePeriodLabel();
+  // Cargar CSVs automáticamente desde GitHub
+  cargarDesdeGitHub();
 
   // Instrumento (resumen)
   const instrs=[...new Set(DB.map(r=>r.instrumento))].sort();
