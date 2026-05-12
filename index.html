@@ -15320,7 +15320,7 @@ const getHora=r=>{if(!r.hora||r.hora==='—')return null;const m=r.hora.match(/^
 
 // ── INIT ──────────────────────────────────────────────────────────────────
 window.addEventListener('DOMContentLoaded',()=>{
-  const fechas=[...new Set(DB.map(r=>r.fecha))].sort();
+  const fechas=[...new Set(DB.map(r=>r.fecha))].sort((a,b)=>parseFecha(a)-parseFecha(b));
   updatePeriodLabel();
   // Cargar CSVs automáticamente desde GitHub
   cargarDesdeGitHub();
@@ -15548,8 +15548,10 @@ function mergeAndRefresh(nuevos){
   applyFilters();
 }
 
+function parseFecha(f){ const [d,m,y]=f.split('/'); return new Date(+y,+m-1,+d); }
+
 function rebuildFechaSelect(){
-  const fechas=[...new Set(DB.map(r=>r.fecha))].sort();
+  const fechas=[...new Set(DB.map(r=>r.fecha))].sort((a,b)=>parseFecha(a)-parseFecha(b));
   const sel=document.getElementById('fechaFilter');
   const cur=sel.value;
   sel.innerHTML='<option value="all">Todas las fechas</option>'+
@@ -15557,7 +15559,7 @@ function rebuildFechaSelect(){
 }
 
 function rebuildEvoFechaSelect(){
-  const fechas=[...new Set(DB.map(r=>r.fecha))].sort();
+  const fechas=[...new Set(DB.map(r=>r.fecha))].sort((a,b)=>parseFecha(a)-parseFecha(b));
   const sel=document.getElementById('evoFechaFilter');
   sel.innerHTML='<option value="all">Todas</option>'+
     fechas.map(f=>`<option value="${f}"${f===EVO_FECHA?' selected':''}>${f}</option>`).join('');
@@ -15574,7 +15576,7 @@ function syncEvoFecha(){
 }
 
 function updatePeriodLabel(){
-  const fechas=[...new Set(DB.map(r=>r.fecha))].sort();
+  const fechas=[...new Set(DB.map(r=>r.fecha))].sort((a,b)=>parseFecha(a)-parseFecha(b));
   const lbl = fechas.length>1 ? fechas[0]+' — '+fechas[fechas.length-1] : 'Datos al '+fechas[0];
   document.getElementById('periodLabel').textContent = lbl;
 }
@@ -15605,7 +15607,7 @@ function getEvoData(){
   let base = getEvoBase();
   if(EVO_FECHA!=='all')   base = base.filter(r=>r.fecha===EVO_FECHA);
   if(EVO_PERIODO!=='all'){
-    const fechas = [...new Set(DB.map(r=>r.fecha))].sort();
+    const fechas = [...new Set(DB.map(r=>r.fecha))].sort((a,b)=>parseFecha(a)-parseFecha(b));
     const ultimas = fechas.slice(-parseInt(EVO_PERIODO));
     base = base.filter(r=>ultimas.includes(r.fecha));
   }
