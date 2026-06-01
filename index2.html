@@ -405,15 +405,28 @@ tbody td{padding:6px 10px;white-space:nowrap}
           <div class="ctitle" style="margin:0;border:none;padding:0" id="evoVolTitle">Tasa TNA promedio por segmento — por rango de plazo</div>
           <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
 
-            <!-- Fecha puntual -->
+            <!-- Fecha multiselect -->
             <span style="font-size:10.5px;font-weight:600;color:var(--navy-mid);text-transform:uppercase;letter-spacing:.5px">Fecha</span>
-            <select class="fsel-date" id="evoFechaFilter" onchange="EVO_FECHA=this.value;EVO_PERIODO='all';syncEvoPeriodo();renderEvolucion(getEvoData())"><option value="all">Todas</option><option value="01/04/2026">01/04/2026</option><option value="06/04/2026">06/04/2026</option><option value="07/04/2026">07/04/2026</option><option value="08/04/2026">08/04/2026</option><option value="09/04/2026">09/04/2026</option><option value="10/04/2026">10/04/2026</option><option value="13/04/2026">13/04/2026</option><option value="14/04/2026">14/04/2026</option><option value="15/04/2026">15/04/2026</option><option value="16/03/2026">16/03/2026</option><option value="16/04/2026">16/04/2026</option><option value="17/03/2026">17/03/2026</option><option value="17/04/2026">17/04/2026</option><option value="18/03/2026">18/03/2026</option><option value="19/03/2026">19/03/2026</option><option value="21/04/2026">21/04/2026</option><option value="22/04/2026">22/04/2026</option><option value="23/04/2026">23/04/2026</option><option value="24/04/2026">24/04/2026</option><option value="27/04/2026">27/04/2026</option><option value="28/04/2026">28/04/2026</option><option value="29/04/2026">29/04/2026</option></select>
+            <div class="ms-wrap" id="evoFechaWrap">
+              <div class="ms-trigger" id="evoFechaTrigger" onclick="toggleEvoFechaMs()">
+                <span id="evoFechaLabel">Todas</span>
+                <span class="ms-count hidden" id="evoFechaCount">1</span>
+                <svg width="9" height="5" viewBox="0 0 9 5" fill="none"><path d="M0 0l4.5 5L9 0z" fill="#8A9BBB"></path></svg>
+              </div>
+              <div class="ms-dropdown" id="evoFechaDropdown">
+                <div class="ms-actions">
+                  <button class="ms-act-btn" onclick="selectAllEvoFechas()">Seleccionar todas</button>
+                  <button class="ms-act-btn" onclick="clearEvoFechas()">Limpiar</button>
+                </div>
+                <div class="ms-list" id="evoFechaList"></div>
+              </div>
+            </div>
 
             <div class="vsep"></div>
 
             <!-- Período -->
             <span style="font-size:10.5px;font-weight:600;color:var(--navy-mid);text-transform:uppercase;letter-spacing:.5px">Período</span>
-            <select class="fsel-date" id="evoPeriodoFilter" onchange="EVO_PERIODO=this.value;EVO_FECHA='all';syncEvoFecha();renderEvolucion(getEvoData())">
+            <select class="fsel-date" id="evoPeriodoFilter" onchange="EVO_PERIODO=this.value;syncEvoFecha();renderEvolucion(getEvoData())">
               <option value="all">Todo</option>
               <option value="4">Últimos 4 días</option>
               <option value="5">Últimos 5 días</option>
@@ -15150,7 +15163,7 @@ const AGENTES = {"114": "ROSARIO VALORES S.A.", "789": "A & J NARI S.A.", "640":
 // ── ESTADO ──────────────────────────────────────────────────────────────
 let S = { seg:'all', pyme:null, instr:'all', moneda:'all', resps:new Set(), view:'resumen', fechas:new Set() };
 let EVO_RESPS = new Set();
-let EVO_FECHA = 'all';
+let EVO_FECHAS = new Set();
 let EVO_PERIODO = 'all';
 let EVO_INSTR = 'all';
 let EVO_MONEDA = 'all';
@@ -15333,6 +15346,7 @@ window.addEventListener('DOMContentLoaded',()=>{
     if(!document.getElementById('respWrap').contains(e.target)) closeMs();
     if(!document.getElementById('evoRespWrap').contains(e.target)) closeEvoMs();
     if(!document.getElementById('fechaWrap').contains(e.target)) closeFechaMs();
+    if(!document.getElementById('evoFechaWrap').contains(e.target)) closeEvoFechaMs();
   });
 
   applyFilters();
@@ -15399,7 +15413,7 @@ function toggleMs(){
   const dd=document.getElementById('respDropdown');
   const tr=document.getElementById('respTrigger');
   const open=dd.classList.contains('open');
-  closeMs(); closeEvoMs(); closeFechaMs();
+  closeMs(); closeEvoMs(); closeFechaMs(); closeEvoFechaMs();
   if(!open){dd.classList.add('open');tr.classList.add('open');}
 }
 function closeMs(){
@@ -15451,7 +15465,7 @@ function toggleEvoMs(){
   const dd=document.getElementById('evoRespDropdown');
   const tr=document.getElementById('evoRespTrigger');
   const open=dd.classList.contains('open');
-  closeMs(); closeEvoMs(); closeFechaMs();
+  closeMs(); closeEvoMs(); closeFechaMs(); closeEvoFechaMs();
   if(!open){dd.classList.add('open');tr.classList.add('open');}
 }
 function closeEvoMs(){
@@ -15560,7 +15574,7 @@ function toggleFechaMs(){
   const dd=document.getElementById('fechaDropdown');
   const tr=document.getElementById('fechaTrigger');
   const open=dd.classList.contains('open');
-  closeMs();closeEvoMs();closeFechaMs();
+  closeMs();closeEvoMs();closeFechaMs();closeEvoFechaMs();
   if(!open){dd.classList.add('open');tr.classList.add('open');}
 }
 function closeFechaMs(){
@@ -15570,21 +15584,64 @@ function closeFechaMs(){
   if(tr){tr.classList.remove('open');}
 }
 
+let ALL_EVO_FECHAS=[];
 function rebuildEvoFechaSelect(){
-  const fechas=[...new Set(DB.map(r=>r.fecha))].sort((a,b)=>parseFecha(a)-parseFecha(b));
-  const sel=document.getElementById('evoFechaFilter');
-  sel.innerHTML='<option value="all">Todas</option>'+
-    fechas.map(f=>`<option value="${f}"${f===EVO_FECHA?' selected':''}>${f}</option>`).join('');
+  ALL_EVO_FECHAS=[...new Set(DB.map(r=>r.fecha))].sort((a,b)=>parseFecha(b)-parseFecha(a)); // más nueva primero
+  EVO_FECHAS=new Set([...EVO_FECHAS].filter(f=>ALL_EVO_FECHAS.includes(f)));
+  renderMsList('evoFechaList',ALL_EVO_FECHAS,EVO_FECHAS,toggleEvoFecha,'');
+  updateEvoFechaTrigger();
 }
-
+function toggleEvoFecha(val){
+  EVO_FECHAS.has(val)?EVO_FECHAS.delete(val):EVO_FECHAS.add(val);
+  if(EVO_FECHAS.size>0) document.getElementById('evoPeriodoFilter').value='all';
+  EVO_PERIODO='all';
+  updateEvoFechaTrigger(); renderEvolucion(getEvoData());
+}
+function selectAllEvoFechas(){
+  ALL_EVO_FECHAS.forEach(f=>EVO_FECHAS.add(f));
+  EVO_PERIODO='all'; document.getElementById('evoPeriodoFilter').value='all';
+  renderMsList('evoFechaList',ALL_EVO_FECHAS,EVO_FECHAS,toggleEvoFecha,'');
+  updateEvoFechaTrigger(); renderEvolucion(getEvoData());
+}
+function clearEvoFechas(){
+  EVO_FECHAS.clear();
+  renderMsList('evoFechaList',ALL_EVO_FECHAS,EVO_FECHAS,toggleEvoFecha,'');
+  updateEvoFechaTrigger(); renderEvolucion(getEvoData());
+}
+function updateEvoFechaTrigger(){
+  const n=EVO_FECHAS.size;
+  const lbl=document.getElementById('evoFechaLabel');
+  const cnt=document.getElementById('evoFechaCount');
+  const trg=document.getElementById('evoFechaTrigger');
+  if(n===0){lbl.textContent='Todas';cnt.classList.add('hidden');trg.classList.remove('has-val');}
+  else{
+    lbl.textContent=n===1?[...EVO_FECHAS][0]:'Varias ('+n+')';
+    cnt.textContent=n;cnt.classList.remove('hidden');trg.classList.add('has-val');
+  }
+}
+function toggleEvoFechaMs(){
+  const dd=document.getElementById('evoFechaDropdown');
+  const tr=document.getElementById('evoFechaTrigger');
+  const open=dd.classList.contains('open');
+  closeMs();closeEvoMs();closeFechaMs();closeEvoFechaMs();
+  if(!open){dd.classList.add('open');tr.classList.add('open');}
+}
+function closeEvoFechaMs(){
+  const dd=document.getElementById('evoFechaDropdown');
+  const tr=document.getElementById('evoFechaTrigger');
+  if(dd){dd.classList.remove('open');}
+  if(tr){tr.classList.remove('open');}
+}
 function syncEvoPeriodo(){
-  // Cuando se elige fecha puntual, limpiar período
+  // Cuando se eligen fechas puntuales, limpiar período
   document.getElementById('evoPeriodoFilter').value='all';
+  EVO_PERIODO='all';
 }
 function syncEvoFecha(){
-  // Cuando se elige período, limpiar fecha puntual
-  document.getElementById('evoFechaFilter').value='all';
-  EVO_FECHA='all';
+  // Cuando se elige período, limpiar fechas seleccionadas
+  EVO_FECHAS.clear();
+  renderMsList('evoFechaList',ALL_EVO_FECHAS,EVO_FECHAS,toggleEvoFecha,'');
+  updateEvoFechaTrigger();
 }
 
 function updatePeriodLabel(){
@@ -15616,7 +15673,7 @@ function getEvoBase(){
 // Datos de evolución: aplica filtros propios de evolución sobre getEvoBase()
 function getEvoData(){
   let base = getEvoBase();
-  if(EVO_FECHA!=='all')   base = base.filter(r=>r.fecha===EVO_FECHA);
+  if(EVO_FECHAS.size>0)   base = base.filter(r=>EVO_FECHAS.has(r.fecha));
   if(EVO_PERIODO!=='all'){
     const fechas = [...new Set(DB.map(r=>r.fecha))].sort((a,b)=>parseFecha(a)-parseFecha(b));
     const ultimas = fechas.slice(-parseInt(EVO_PERIODO));
@@ -15647,14 +15704,14 @@ function togglePyme(val){
 }
 function resetFilters(){
   S={seg:'all',pyme:null,instr:'all',moneda:'all',resps:new Set(),view:S.view,fechas:new Set()};
-  EVO_FECHA='all'; EVO_PERIODO='all'; EVO_INSTR='all'; EVO_MONEDA='all';
+  EVO_FECHAS=new Set(); EVO_PERIODO='all'; EVO_INSTR='all'; EVO_MONEDA='all';
   document.querySelectorAll('#segBtns .tbtn').forEach(b=>b.className='tbtn');
   document.querySelector('#segBtns .tbtn').classList.add('a-all');
   ['pymeSI','pymeNO'].forEach(id=>{document.getElementById(id).classList.remove('active');document.getElementById(id).style.display='none';});
   document.getElementById('instrFilter').value='all';
   document.getElementById('monedaFilter').value='all';
-  document.getElementById('evoFechaFilter').value='all';
   document.getElementById('evoPeriodoFilter').value='all';
+  rebuildEvoFechaSelect();
   document.getElementById('respSearch').value='';
   buildRespList('all');
   buildEvoRespList('all');
