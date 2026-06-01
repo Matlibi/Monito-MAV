@@ -134,7 +134,8 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--t1);font-
 .cbar{position:relative;height:190px}
 
 /* Charts row */
-.charts-row{display:grid;grid-template-columns:1.7fr 1fr 1fr;gap:13px}
+.charts-row{display:grid;grid-template-columns:1fr 1.5fr 1fr;gap:13px}
+.charts-row .tbl-card{grid-column:1/3}
 
 /* Evolución */
 .evo-grid{display:grid;grid-template-columns:1fr 1fr;gap:13px}
@@ -357,7 +358,6 @@ tbody td{padding:6px 10px;white-space:nowrap}
         <div class="ctitle">Volumen por rango de plazo</div>
         <div class="cbar"><canvas id="cInstr" style="box-sizing: border-box; display: block; height: 190px; width: 462px;" width="462" height="190"></canvas></div>
       </div>
-    </div>
     <div class="tbl-card">
       <div class="tbl-head">
         <div class="ctitle" style="margin:0;border:none;padding:0">Operaciones negociadas — detalle</div>
@@ -426,6 +426,7 @@ tbody td{padding:6px 10px;white-space:nowrap}
         </table>
         <div class="empty" id="emptyMsg" style="display: none;">No hay operaciones para los filtros seleccionados.</div>
       </div>
+    </div>
     </div>
   </div>
 
