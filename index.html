@@ -15698,7 +15698,7 @@ function syncEvoFecha(){
 
 function updatePeriodLabel(){
   const fechas=[...new Set(DB.map(r=>r.fecha))].sort((a,b)=>parseFecha(b)-parseFecha(a));
-  const lbl = fechas.length>1 ? fechas[0]+' — '+fechas[fechas.length-1] : 'Datos al '+fechas[0];
+  const lbl = fechas.length>0 ? 'Actualizado al '+fechas[0] : '';
   document.getElementById('periodLabel').textContent = lbl;
 }
 function getFiltered(){
